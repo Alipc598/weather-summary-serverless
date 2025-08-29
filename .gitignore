@@ -3,5 +3,6 @@
 !.vercel/project.json
 .env
 coverage/
-.vercel
 
+.vercel/*
+!.vercel/project.json
