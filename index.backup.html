@@ -1,0 +1,132 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Weather Summary</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    html, body, #app { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+    .pane {
+      position: absolute; top: 16px; left: 16px; right: 16px; z-index: 1000;
+      display: flex; gap: 8px; align-items: center; justify-content: space-between;
+    }
+    .card {
+      background: #fff; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.12);
+      padding: 12px 14px; min-width: 320px; max-width: 520px;
+      display: flex; gap: 12px; align-items: center;
+    }
+    .title { font-weight: 700; font-size: 16px; }
+    .muted { color: #666; font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    input[type="search"]{
+      width: 360px; height: 40px; border: 1px solid #ddd; border-radius: 10px; padding: 0 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .pill { border:1px solid #eee; padding:4px 8px; border-radius:999px; font-size:12px; }
+    .flex { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .hidden { display:none; }
+    @media (max-width: 600px) {
+      .pane { flex-direction: column; align-items: stretch; }
+      input[type="search"]{ width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="pane">
+    <input id="search" type="search" placeholder="Search city… (Enter to choose top result)"/>
+    <div id="info" class="card hidden">
+      <div>
+        <div class="title" id="c-name">—</div>
+        <div class="muted mono" id="c-ll">—</div>
+        <div class="flex" style="margin-top:6px">
+          <span class="pill mono" id="c-temp">—</span>
+          <span class="pill mono" id="c-wind">—</span>
+          <span class="pill mono" id="c-precip">—</span>
+          <span class="pill" id="c-summary">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map', { worldCopyJump: true }).setView([20, 0], 2)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map)
+
+  let marker
+
+  async function fetchJSON(url) {
+    const r = await fetch(url, { headers: { accept: 'application/json' }})
+    if (!r.ok) throw new Error(await r.text())
+    return r.json()
+  }
+
+  async function reverseGeocode(lat, lon) {
+    const u = new URL('https://geocoding-api.open-meteo.com/v1/reverse')
+    u.searchParams.set('latitude', String(lat))
+    u.searchParams.set('longitude', String(lon))
+    u.searchParams.set('language', 'en')
+    u.searchParams.set('count', '1')
+    const data = await fetchJSON(u)
+    const first = data && data.results && data.results[0]
+    return first ? first.name : `${lat.toFixed(3)}, ${lon.toFixed(3)}`
+  }
+
+  function showCard(payload) {
+    document.getElementById('info').classList.remove('hidden')
+    document.getElementById('c-name').textContent = payload.city
+    document.getElementById('c-ll').textContent = `${payload.lat.toFixed(3)}, ${payload.lon.toFixed(3)}`
+    document.getElementById('c-temp').textContent = `${payload.temp_c.toFixed(1)} °C`
+    document.getElementById('c-wind').textContent = `${payload.wind_kph.toFixed(1)} kph wind`
+    document.getElementById('c-precip').textContent = `${payload.precip_mm.toFixed(1)} mm`
+    document.getElementById('c-summary').textContent = payload.summary
+  }
+
+  async function queryByLatLon(lat, lon) {
+    if (marker) marker.remove()
+    marker = L.marker([lat, lon]).addTo(map)
+    // Use our serverless API for exact coords:
+    const u = new URL('/weather-summary', location.origin)
+    u.searchParams.set('lat', lat)
+    u.searchParams.set('lon', lon)
+    const payload = await fetchJSON(u)
+    // If API didn’t resolve a city name, fall back to reverse geocode for display only
+    if (!payload.city || /,/.test(payload.city)) {
+      try { payload.city = await reverseGeocode(lat, lon) } catch {}
+    }
+    marker.bindPopup(`<b>${payload.city}</b><br>${payload.summary}`).openPopup()
+    showCard(payload)
+  }
+
+  map.on('click', (e) => {
+    const { lat, lng } = e.latlng
+    queryByLatLon(lat, lng)
+  })
+
+  // Simple search: press Enter to grab top match and center there
+  document.getElementById('search').addEventListener('keydown', async (ev) => {
+    if (ev.key !== 'Enter') return
+    const q = ev.currentTarget.value.trim()
+    if (!q) return
+    const u = new URL('https://geocoding-api.open-meteo.com/v1/search')
+    u.searchParams.set('name', q)
+    u.searchParams.set('count', '1')
+    u.searchParams.set('language', 'en')
+    try {
+      const data = await fetchJSON(u)
+      const first = data?.results?.[0]
+      if (!first) return
+      map.setView([first.latitude, first.longitude], 8)
+      queryByLatLon(first.latitude, first.longitude)
+    } catch (e) { console.error(e) }
+  })
+</script>
+</body>
+</html>
