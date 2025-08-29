@@ -221,7 +221,7 @@
         if (e.key !== 'Enter') return;
         const q = e.target.value.trim(); if (!q) return;
         try {
-          const gres = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+          const gres = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`, { cache: 'no-store' });
           const [g] = await gres.json();
           let lat = 50.0, lon = 14.4;
           if (g) { lat = +g.lat; lon = +g.lon; map.setView([lat,lon], 11); }
@@ -243,4 +243,5 @@
     </script>
   </body>
 </html>
+
 
