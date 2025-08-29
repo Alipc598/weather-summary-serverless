@@ -207,13 +207,7 @@
 
         if (marker) marker.remove();
         marker = L.marker([lat,lon]).addTo(map);
-        marker.bindPopup(
-          `<b>${lat.toFixed(6)},${lon.toFixed(6)}</b><br/>` +
-          `${summary}<br/>` +
-          `${temp_c.toFixed(1)} °C &nbsp; ${wind_kph.toFixed(1)} kph wind` +
-          (rain_mm?` &nbsp; ${rain_mm.toFixed(1)} mm`:``)
-        ).openPopup();
-      }
+        }
 
       map.on('click', async (e)=>{
         const { lat, lng } = e.latlng;
@@ -249,3 +243,4 @@
     </script>
   </body>
 </html>
+
