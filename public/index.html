@@ -327,8 +327,50 @@
   };
 })();
 </script>
+<script>
+/* --- LOCK WEATHER CARD (no dragging, always bottom-left) --- */
+(function () {
+  function lockCard() {
+    const id = "weather-stats";
+    const old = document.getElementById(id);
+    if (!old) return;
+
+    // Replace node to drop any previously registered event listeners
+    const card = old.cloneNode(true);
+    if (old.parentNode) old.parentNode.replaceChild(card, old);
+
+    // Position: bottom-left
+    Object.assign(card.style, {
+      top: "",
+      right: "",
+      left: "12px",
+      bottom: "12px",
+      transform: "",
+      cursor: "default",
+      userSelect: "auto"
+    });
+    card.classList.remove("pos-tr","pos-tl","pos-br","draggable");
+    card.classList.add("pos-bl");
+    card.setAttribute("data-locked","true");
+
+    // Block any drag attempts (capture phase beats other handlers)
+    const block = (e) => { e.stopImmediatePropagation(); e.preventDefault(); };
+    ["mousedown","pointerdown","touchstart","dragstart"].forEach(ev =>
+      card.addEventListener(ev, block, true)
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", lockCard);
+  } else {
+    lockCard();
+  }
+  window.addEventListener("resize", lockCard); // keep it locked on resize
+})();
+</script>
 </body>
 </html>
+
 
 
 
