@@ -26,7 +26,7 @@ jobs:
         run: npm test
 
       - name: Deploy to Production (Vercel)
-        if: github.ref == "refs/heads/main"
+        if: github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -34,9 +34,7 @@ jobs:
         run: |
           set -e
           if [ -z "$VERCEL_TOKEN" ]; then
-            echo "VERCEL_TOKEN is missing. Add it in GitHub → Settings → Secrets → Actions."; exit 1;
+            echo "VERCEL_TOKEN is missing"; exit 1;
           fi
-          # Pull project settings non-interactively
           npx vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-          # Deploy to production non-interactively
           npx vercel deploy --prod --yes --token "$VERCEL_TOKEN"
