@@ -1,0 +1,27 @@
+﻿{
+    "name":  "weather-summary-serverless",
+    "version":  "1.0.0",
+    "description":  "",
+    "main":  "index.js",
+    "scripts":  {
+                    "deploy:sh":  "bash scripts/deploy.sh",
+                    "test":  "jest",
+                    "lint":  "eslint .",
+                    "dev:sh":  "bash scripts/dev.sh",
+                    "dev":  "scripts/dev.cmd",
+                    "deploy":  "scripts/deploy.cmd"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "devDependencies":  {
+                            "eslint":  "^9.34.0",
+                            "jest":  "^30.1.1",
+                            "vercel":  "^46.1.1"
+                        },
+    "jest":  {
+                 "testEnvironment":  "node"
+             }
+}
