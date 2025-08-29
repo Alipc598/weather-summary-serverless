@@ -1,6 +1,7 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/weather-summary", "dest": "/api/weather-summary.js" }
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/weather-summary$", "dest": "/api/weather-summary.js" }
   ]
 }
