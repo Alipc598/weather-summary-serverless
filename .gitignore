@@ -6,3 +6,4 @@ coverage/
 
 .vercel/*
 !.vercel/project.json
+public/index.backup_20250829-225042.html
