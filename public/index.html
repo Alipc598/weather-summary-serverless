@@ -16,7 +16,7 @@
       html,body { height:100%; margin:0; }
       #map { height:100%; }
 
-      /* Top bar (only search; centered) */
+      /* Top bar (centered search) */
       .topbar{ position:absolute; inset:12px 12px auto 12px; z-index:1000; pointer-events:none; }
       .topbar-inner{ display:flex; justify-content:center; pointer-events:auto; }
       .search{
@@ -25,16 +25,15 @@
         background:rgba(255,255,255,.95); box-shadow:0 6px 24px rgba(0,0,0,.12);
       }
 
-      /* Draggable stats card (starts bottom-left) */
+      /* Weather card — LOCKED bottom-left (no dragging) */
       #weather-card{
         position:absolute; bottom:12px; left:12px; z-index:1000;
         background:rgba(255,255,255,.96);
         border-radius:14px; padding:12px 14px; min-width:260px; max-width:min(92vw, 480px);
         box-shadow:0 12px 30px rgba(0,0,0,.18); font:15px/1.45 system-ui, sans-serif;
         border:1px solid #eee;
-        cursor:grab;
+        cursor:default; user-select:auto; transform:none;
       }
-      #weather-card.dragging{ cursor:grabbing; user-select:none; }
 
       /* Tight card layout: text left, animation right */
       .card-inner{ display:flex; align-items:center; gap:8px; }
@@ -43,11 +42,11 @@
       .temp{ font-size:32px; font-weight:800; letter-spacing:.2px; }
       .row{ margin-top:4px; }
 
-      /* Animation holder: keep size, reduce surrounding whitespace */
+      /* Animation holder: keep size, trim whitespace around the art */
       .anim-wrap{
         width:132px; height:132px; flex:0 0 132px;
         display:grid; place-items:center;
-        margin: -2px -4px -2px 0;   /* trims extra white edge around animation without shrinking it */
+        margin: -2px -4px -2px 0;
       }
       .anim-wrap > div{ width:100%; height:100%; }
 
@@ -58,25 +57,14 @@
       .card--snow  { border-color:#cbe7ff; }
       .card--storm { border-color:#ffc2c2; }
 
-      .leaflet-popup-content { margin:10px 14px; }
+      .leaflet-popup-content { margin:10px 14px; } /* not used now (no popups) */
 
       @media (max-width:560px){
         .anim-wrap{ width:108px; height:108px; flex-basis:108px; }
         .temp{ font-size:28px; }
       }
     </style>
-  <style id="lock-card-css">
-  #weather-stats{
-    position:absolute !important;
-    bottom:12px !important;
-    left:12px !important;
-    right:auto !important;
-    top:auto !important;
-    transform:none !important;
-    -webkit-transform:none !important;
-  }
-</style>
-</head>
+  </head>
   <body>
     <!-- top search -->
     <div class="topbar">
@@ -85,7 +73,7 @@
       </div>
     </div>
 
-    <!-- draggable card with animation INSIDE -->
+    <!-- LOCKED card with animation INSIDE -->
     <div id="weather-card" role="status" aria-live="polite">
       <div class="card-inner">
         <div class="metrics">
@@ -109,52 +97,60 @@
       }).addTo(map);
       let marker;
 
-      /* ---------------- Draggable card ---------------- */
-      const card = document.getElementById('weather-card');
-      const restore = localStorage.getItem('cardPos');
-      if (restore) {
+      /* ---------------- Card lock (no dragging, no saved pos) ---------------- */
+      (function lockCardForever(){
+        const card = document.getElementById('weather-card');
+        if (!card) return;
+
+        // Clear any persisted position from older builds
         try {
-          const {x,y} = JSON.parse(restore);
-          card.style.left = x + 'px';
-          card.style.top  = y + 'px';
-          card.style.right = 'auto'; card.style.bottom = 'auto';
+          Object.keys(localStorage || {}).forEach(k => {
+            const lk = k.toLowerCase();
+            if ((lk.includes('card') && lk.includes('pos')) || (lk.includes('weather') && lk.includes('pos')))
+              localStorage.removeItem(k);
+          });
         } catch {}
-      }
-      let dragging = false, grab = {x:0,y:0};
-      card.addEventListener('pointerdown', (e)=>{
-        if (e.button!==0) return;
-        dragging = true; card.classList.add('dragging'); card.setPointerCapture(e.pointerId);
-        const r = card.getBoundingClientRect();
-        // switch from bottom/left to absolute top/left the first time
-        card.style.left = r.left + 'px'; card.style.top = r.top + 'px';
-        card.style.right='auto'; card.style.bottom='auto';
-        grab.x = e.clientX - r.left; grab.y = e.clientY - r.top;
-      });
-      card.addEventListener('pointermove', (e)=>{
-        if (!dragging) return;
-        const vw = innerWidth, vh = innerHeight, w = card.offsetWidth, h = card.offsetHeight;
-        let x = e.clientX - grab.x, y = e.clientY - grab.y;
-        x = Math.min(Math.max(8, x), vw - w - 8);
-        y = Math.min(Math.max(8, y), vh - h - 8);
-        card.style.left = x + 'px'; card.style.top = y + 'px';
-      });
-      card.addEventListener('pointerup', (e)=>{
-        if (!dragging) return;
-        dragging = false; card.classList.remove('dragging'); card.releasePointerCapture(e.pointerId);
-        localStorage.setItem('cardPos', JSON.stringify({x: parseInt(card.style.left||'0'), y: parseInt(card.style.top||'0')}));
-      });
+
+        // Best-effort: disable InteractJS if someone injected it
+        try {
+          if (window.interact) { try { window.interact(card).unset(); } catch(e) {} }
+        } catch {}
+
+        const block = (e)=>{ e.stopImmediatePropagation(); e.preventDefault(); };
+        ["mousedown","pointerdown","touchstart","dragstart"].forEach(ev =>
+          card.addEventListener(ev, block, true)
+        );
+
+        function lock(){
+          Object.assign(card.style, {
+            top: "", right: "", transform:"none", cursor:"default",
+            left: "12px", bottom: "12px"
+          });
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", lock);
+        } else {
+          lock();
+        }
+        window.addEventListener("resize", lock, { passive:true });
+      })();
 
       /* ---------------- Theming & animation ---------------- */
-      function pickCondition({ tempC, windKph, rainMm, thunder }) {
-        if (thunder) return { key:'thunder', theme:'card--storm' };
-        if (rainMm > 0.2) return { key:'rain', theme:'card--rain' };
-        if (tempC <= 1.5) return { key:'snow', theme:'card--snow' };
-        if (windKph >= 25) return { key:'cloudy', theme:'card--cloudy' };
-        if (tempC >= 23 && rainMm < 0.2) return { key:'sunny', theme:'card--sunny' };
+      function tempWord(t){ return t>=28?'Hot':t>=22?'Warm':t>=14?'Mild':t>=5?'Cool':'Cold'; }
+      function windWord(w){ return w>=25?'Windy':w>=12?'Breezy':'Calm'; }
+
+      // Use WMO codes to improve condition selection
+      const RAIN = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82]);
+      const SNOW = new Set([71,73,75,77,85,86]);
+      const THUNDER = new Set([95,96,99]);
+
+      function pickCondition({ tempC, windKph, rainMm=0, code=0, thunder=false }) {
+        if (THUNDER.has(code) || thunder) return { key:'thunder', theme:'card--storm' };
+        if (RAIN.has(code) || (rainMm ?? 0) > 0.01) return { key:'rain', theme:'card--rain' };
+        if (SNOW.has(code)) return { key:'snow', theme:'card--snow' };
+        if (tempC >= 25 && (rainMm ?? 0) <= 0.01) return { key:'sunny', theme:'card--sunny' };
         return { key:'cloudy', theme:'card--cloudy' };
       }
-      function tempWord(t){ return t>=28?'Hot':t>=22?'Warm':t>=14?'Mild':'Cold'; }
-      function windWord(w){ return w>=25?'Windy':w>=12?'Breezy':'Calm'; }
 
       let lottieInstance = null;
       async function renderCardAnimation(conditionKey){
@@ -171,10 +167,12 @@
         } catch {}
       }
       function themeCard(theme){
+        const card = document.getElementById('weather-card');
         card.classList.remove('card--sunny','card--rain','card--cloudy','card--snow','card--storm');
         card.classList.add(theme);
       }
       function updateStats({ lat, lon, tempC, windKph, rainMm, summary, theme, conditionKey }){
+        const card = document.getElementById('weather-card');
         themeCard(theme);
         card.querySelector('.coords').textContent = `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
         card.querySelector('.temp').textContent   = `${tempC.toFixed(1)} °C`;
@@ -200,25 +198,34 @@
         if (!r.ok) throw new Error('Upstream error');
         const j = await r.json();
         const cur = j.current || {};
+        const temp = Number(cur.temperature_2m ?? NaN);
+        const wind = Number(cur.wind_speed_10m ?? 0);
+        const rain = Number(cur.precipitation ?? 0);
+        const code = Number(cur.weather_code ?? 0);
+
+        const parts = [tempWord(temp)];
+        if (THUNDER.has(code)) parts.push('Thunder');
+        else if (RAIN.has(code) || rain > 0.01) parts.push('Rain');
+        parts.push(windWord(wind));
+
         return {
-          temp_c: cur.temperature_2m ?? NaN,
-          wind_kph: (cur.wind_speed_10m ?? 0),
-          rain_mm: cur.precipitation ?? 0,
-          thunder: [95,96,99].includes(cur.weather_code),
-          summary: `${tempWord(cur.temperature_2m ?? 0)} + ${windWord((cur.wind_speed_10m ?? 0))}`
+          temp_c: temp,
+          wind_kph: wind,        // already in km/h for current data
+          rain_mm: rain,
+          weather_code: code,
+          thunder: THUNDER.has(code),
+          summary: parts.join(' + ')
         };
       }
 
       /* ---------------- Glue ---------------- */
-      let lastConditionKey = 'cloudy';
-      function showWeatherUI({ lat, lon, temp_c, wind_kph, rain_mm=0, thunder=false, summary }){
-        const { key, theme } = pickCondition({ tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, thunder });
-        lastConditionKey = key;
+      function showWeatherUI({ lat, lon, temp_c, wind_kph, rain_mm=0, weather_code=0, thunder=false, summary }){
+        const { key, theme } = pickCondition({ tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, code: weather_code, thunder });
         updateStats({ lat, lon, tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, summary, theme, conditionKey:key });
 
         if (marker) marker.remove();
-        marker = L.marker([lat,lon]).addTo(map);
-        }
+        marker = L.marker([lat,lon]).addTo(map); // no popup
+      }
 
       map.on('click', async (e)=>{
         const { lat, lng } = e.latlng;
@@ -252,198 +259,5 @@
         }, ()=>{});
       }
     </script>
-  <script>
-/* --- Weather card: lock to bottom-left, disable dragging --- */
-(function () {
-  function lockCardBottomLeft() {
-    const card = document.getElementById('weather-stats');
-    if (!card) return;
-
-    // Force bottom-left placement and remove any drag transforms
-    card.style.top = "";
-    card.style.right = "";
-    card.style.left = "12px";
-    card.style.bottom = "12px";
-    card.style.transform = "";
-    card.style.cursor = "default";
-    card.classList.remove("pos-tr","pos-tl","pos-br");
-    card.classList.add("pos-bl");
-
-    // Best-effort: cancel any handlers a previous patch may have attached
-    card.onmousedown = null;
-    document.onmousemove = null;
-    document.onmouseup = null;
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", lockCardBottomLeft);
-  } else {
-    lockCardBottomLeft();
-  }
-
-  // Also keep it there on resize (no snapping logic; it just remains locked)
-  window.addEventListener("resize", lockCardBottomLeft);
-})();
-
-/* --- Stricter condition mapping so rain/thunder shows reliably --- */
-// Override the condition picker to use both precipitation and WMO weather_code.
-(function () {
-  const RAIN = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82]);
-  const SNOW = new Set([71,73,75,77,85,86]);
-  const THUNDER = new Set([95,96,99]);
-
-  function tempWord(t){ return t>=28?'Hot':t>=22?'Warm':t>=14?'Mild':t>=5?'Cool':'Cold'; }
-  function windWord(w){ return w>=25?'Windy':w>=12?'Breezy':'Calm'; }
-
-  // Replace global pickCondition (last definition wins)
-  window.pickCondition = function pickCondition({ tempC, windKph, rainMm=0, thunder=false, code=0 }) {
-    if (THUNDER.has(code) || thunder) return { key:'thunder', theme:'card--storm' };
-    if ((rainMm ?? 0) > 0.01 || RAIN.has(code)) return { key:'rain', theme:'card--rain' };
-    if (SNOW.has(code)) return { key:'snow', theme:'card--snow' };
-    if (tempC >= 25 && (rainMm ?? 0) <= 0.01) return { key:'sunny', theme:'card--sunny' };
-    return { key:'cloudy', theme:'card--cloudy' };
-  };
-
-  // Replace getWeatherByLatLon to carry weather_code into UI + compute a clearer summary
-  window.getWeatherByLatLon = async function getWeatherByLatLon(lat, lon){
-    const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.search = new URLSearchParams({
-      latitude: lat, longitude: lon,
-      current: 'temperature_2m,wind_speed_10m,precipitation,weather_code'
-    }).toString();
-
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('Upstream error');
-    const j = await r.json();
-    const cur = j.current || {};
-
-    const temp = Number(cur.temperature_2m ?? NaN);
-    const wind = Number(cur.wind_speed_10m ?? 0);
-    const rain = Number(cur.precipitation ?? 0);
-    const code = Number(cur.weather_code ?? 0);
-
-    const parts = [tempWord(temp)];
-    if ([95,96,99].includes(code)) parts.push('Thunder');
-    else if (rain > 0.01 || [51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) parts.push('Rain');
-    parts.push(windWord(wind));
-
-    return {
-      temp_c: temp,
-      wind_kph: wind,        // Open-Meteo current wind is already in km/h
-      rain_mm: rain,
-      weather_code: code,
-      thunder: [95,96,99].includes(code),
-      summary: parts.join(' + ')
-    };
-  };
-})();
-</script>
-<script>
-/* --- LOCK WEATHER CARD (no dragging, always bottom-left) --- */
-(function () {
-  function lockCard() {
-    const id = "weather-stats";
-    const old = document.getElementById(id);
-    if (!old) return;
-
-    // Replace node to drop any previously registered event listeners
-    const card = old.cloneNode(true);
-    if (old.parentNode) old.parentNode.replaceChild(card, old);
-
-    // Position: bottom-left
-    Object.assign(card.style, {
-      top: "",
-      right: "",
-      left: "12px",
-      bottom: "12px",
-      transform: "",
-      cursor: "default",
-      userSelect: "auto"
-    });
-    card.classList.remove("pos-tr","pos-tl","pos-br","draggable");
-    card.classList.add("pos-bl");
-    card.setAttribute("data-locked","true");
-
-    // Block any drag attempts (capture phase beats other handlers)
-    const block = (e) => { e.stopImmediatePropagation(); e.preventDefault(); };
-    ["mousedown","pointerdown","touchstart","dragstart"].forEach(ev =>
-      card.addEventListener(ev, block, true)
-    );
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", lockCard);
-  } else {
-    lockCard();
-  }
-  window.addEventListener("resize", lockCard); // keep it locked on resize
-})();
-</script>
-<script>
-(function() {
-  const el = document.getElementById('weather-stats');
-  if (!el) return;
-
-  // If interact.js is present, explicitly disable it for this element
-  try {
-    if (window.interact) {
-      try { window.interact(el).unset(); } catch(e) {}
-      try { window.interact('#weather-stats').unset(); } catch(e) {}
-    }
-  } catch(e) {}
-
-  // Clear any persisted position keys from earlier versions
-  try {
-    const keys = Object.keys(localStorage || {});
-    keys.forEach(k => {
-      const lk = k.toLowerCase();
-      // nuke anything that looks like we saved card position before
-      if ((lk.includes('card') && lk.includes('pos')) || (lk.includes('weather') && lk.includes('pos'))) {
-        localStorage.removeItem(k);
-      }
-    });
-  } catch(e) {}
-
-  // Make sure no drag handlers remain
-  el.onmousedown = null;
-  el.ontouchstart = null;
-  el.ondragstart = null;
-
-  // Hard-lock position now and on resize
-  function lock() {
-    el.style.top = 'auto';
-    el.style.right = 'auto';
-    el.style.bottom = '12px';
-    el.style.left = '12px';
-    el.style.transform = 'none';
-    el.style.webkitTransform = 'none';
-  }
-  lock();
-  window.addEventListener('resize', lock, { passive: true });
-})();
-</script>
-</body>
+  </body>
 </html>
-
-
-
-
-
-<style>
-  #weather-stats {
-    position:absolute;
-    bottom:12px;
-    left:12px;
-    right:auto;
-    top:auto;
-    z-index:1000;
-    background:rgba(255,255,255,.92);
-    border-radius:14px;
-    padding:14px 16px;
-    min-width:240px;
-    box-shadow:0 12px 30px rgba(0,0,0,.18);
-    font:15px/1.5 system-ui, sans-serif;
-    border:1px solid #eee;
-  }
-</style>
-
