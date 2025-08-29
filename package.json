@@ -8,8 +8,8 @@
                     "test":  "jest",
                     "lint":  "eslint .",
                     "dev:sh":  "bash scripts/dev.sh",
-                    "dev":  "scripts/dev.cmd",
-                    "deploy":  "scripts/deploy.cmd"
+                    "dev":  "scripts\\\\dev.cmd",
+                    "deploy":  "scripts\\\\deploy.cmd"
                 },
     "keywords":  [
 
