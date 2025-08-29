@@ -94,7 +94,7 @@ async function handler(req, res) {
     // Cache key: prefer exact coords to avoid mixing cities
     const key = cityRaw
       ? `city:${cityRaw.toLowerCase()}`
-      : `coord:${lat!.toFixed(4)},${lon!.toFixed(4)}`
+      : `coord:${Number(lat).toFixed(4)},${Number(lon).toFixed(4)}`
     const now = Date.now()
     const cached = cache.get(key)
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -138,3 +138,4 @@ async function handler(req, res) {
 
 module.exports = handler
 module.exports._internal = { computeSummary }
+
