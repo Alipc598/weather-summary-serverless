@@ -1,4 +1,7 @@
 ﻿node_modules/
-.vercel/
+.vercel/*
+!.vercel/project.json
 .env
 coverage/
+.vercel
+
