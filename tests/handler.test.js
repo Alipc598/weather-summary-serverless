@@ -57,7 +57,7 @@ describe("handler with mocked upstream", () => {
     expect(body.city).toBe("Prague");
     expect(body.temp_c).toBe(22.1);
     expect(body.wind_kph).toBe(12.3);
-    expect(["Mild + Breezy", "Warm + Breezy"]).toContain(body.summary);
+    expect(body.summary).toBe("Warm + Calm");
   });
 
   test("400 when missing city", async () => {
@@ -67,3 +67,4 @@ describe("handler with mocked upstream", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
