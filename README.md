@@ -1,4 +1,6 @@
-﻿**Production:** https://weather-summary-serverless-6cht63ar1-alipc598s-projects.vercel.app
+﻿[![CI](https://github.com/Alipc598/weather-summary-serverless/actions/workflows/ci.yml/badge.svg)](https://github.com/Alipc598/weather-summary-serverless/actions/workflows/ci.yml)
+
+**Production:** https://weather-summary-serverless-6cht63ar1-alipc598s-projects.vercel.app
 
 # Weather Summary API (Vercel)
 
@@ -22,5 +24,7 @@ On push to `main`: lint → test → deploy (requires repo secret: VERCEL_TOKEN)
 - Open-Meteo geocoding + forecast, metric units.
 - Handles both `current` and legacy `current_weather`.
 - 60s in-memory cache per city.
+
+
 
 
