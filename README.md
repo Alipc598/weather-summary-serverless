@@ -1,6 +1,6 @@
 ﻿[![CI](https://github.com/Alipc598/weather-summary-serverless/actions/workflows/ci.yml/badge.svg)](https://github.com/Alipc598/weather-summary-serverless/actions/workflows/ci.yml)
 
-**Production:** https://weather-summary-serverless-6cht63ar1-alipc598s-projects.vercel.app
+**Production:** https://weather-summary-serverless.vercel.app/
 
 # Weather Summary API (Vercel)
 
