@@ -34,7 +34,7 @@
         border:1px solid #eee;
         cursor:grab;
       }
-      /*#weather-card.dragging{ cursor:grabbing; user-select:none; }
+      #weather-card.dragging{ cursor:grabbing; user-select:none; }
 
       /* Tight card layout: text left, animation right */
       .card-inner{ display:flex; align-items:center; gap:8px; }
@@ -65,7 +65,18 @@
         .temp{ font-size:28px; }
       }
     </style>
-  </head>
+  <style id="lock-card-css">
+  #weather-stats{
+    position:absolute !important;
+    bottom:12px !important;
+    left:12px !important;
+    right:auto !important;
+    top:auto !important;
+    transform:none !important;
+    -webkit-transform:none !important;
+  }
+</style>
+</head>
   <body>
     <!-- top search -->
     <div class="topbar">
@@ -368,6 +379,49 @@
   window.addEventListener("resize", lockCard); // keep it locked on resize
 })();
 </script>
+<script>
+(function() {
+  const el = document.getElementById('weather-stats');
+  if (!el) return;
+
+  // If interact.js is present, explicitly disable it for this element
+  try {
+    if (window.interact) {
+      try { window.interact(el).unset(); } catch(e) {}
+      try { window.interact('#weather-stats').unset(); } catch(e) {}
+    }
+  } catch(e) {}
+
+  // Clear any persisted position keys from earlier versions
+  try {
+    const keys = Object.keys(localStorage || {});
+    keys.forEach(k => {
+      const lk = k.toLowerCase();
+      // nuke anything that looks like we saved card position before
+      if ((lk.includes('card') && lk.includes('pos')) || (lk.includes('weather') && lk.includes('pos'))) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch(e) {}
+
+  // Make sure no drag handlers remain
+  el.onmousedown = null;
+  el.ontouchstart = null;
+  el.ondragstart = null;
+
+  // Hard-lock position now and on resize
+  function lock() {
+    el.style.top = 'auto';
+    el.style.right = 'auto';
+    el.style.bottom = '12px';
+    el.style.left = '12px';
+    el.style.transform = 'none';
+    el.style.webkitTransform = 'none';
+  }
+  lock();
+  window.addEventListener('resize', lock, { passive: true });
+})();
+</script>
 </body>
 </html>
 
@@ -392,3 +446,4 @@
     border:1px solid #eee;
   }
 </style>
+
