@@ -29,32 +29,36 @@
         padding:10px 14px; border-radius:12px; border:1px solid #ddd; font-size:15px;
         background:rgba(255,255,255,.95); box-shadow:0 6px 24px rgba(0,0,0,.12);
       }
-      .toggle,.select-wrap{
+      .select-wrap{
         display:flex; align-items:center; gap:8px; padding:8px 12px;
         border-radius:12px; background:rgba(255,255,255,.9); border:1px solid #eee;
         font-size:14px;
       }
       .select-wrap select{ font-size:14px; padding:6px 8px; border-radius:8px; }
 
-      /* Fullscreen overlay (for fullscreen animation mode) */
-      #weather-overlay{
-        position:absolute; inset:0; z-index:500; pointer-events:none;
-      }
-
       /* Stats card (movable to corners) */
-      #weather-stats{
+      #weather-card{
         position:absolute; z-index:1000;
-        background:rgba(255,255,255,.92);
-        border-radius:14px; padding:14px 16px; min-width:240px;
+        background:rgba(255,255,255,.96);
+        border-radius:14px; padding:14px 16px; min-width:280px; max-width:min(92vw, 520px);
         box-shadow:0 12px 30px rgba(0,0,0,.18); font:15px/1.5 system-ui, sans-serif;
         border:1px solid #eee;
       }
       .pos-tr{ top:12px; right:12px; } .pos-tl{ top:12px; left:12px; }
       .pos-br{ bottom:12px; right:12px; } .pos-bl{ bottom:12px; left:12px; }
 
-      #weather-stats .temp{ font-size:28px; font-weight:700; letter-spacing:.2px; }
-      #weather-stats .row{ margin-top:4px; }
-      #weather-stats .coords{ font-size:12px; color:#666; margin-bottom:4px; }
+      /* card layout = text left, animation right */
+      .card-inner{ display:flex; align-items:center; gap:16px; }
+      .metrics{ flex:1 1 auto; min-width:220px; }
+      .anim-wrap{
+        width:130px; height:130px; flex:0 0 130px;
+        display:grid; place-items:center;
+      }
+      .anim-wrap > div{ width:100%; height:100%; }
+
+      #weather-card .temp{ font-size:32px; font-weight:800; letter-spacing:.2px; }
+      #weather-card .row{ margin-top:4px; }
+      #weather-card .coords{ font-size:12px; color:#666; margin-bottom:6px; }
 
       /* Subtle theme border based on condition */
       .card--sunny { border-color:#ffe299; }
@@ -63,18 +67,14 @@
       .card--snow  { border-color:#cbe7ff; }
       .card--storm { border-color:#ffc2c2; }
 
-      /* Pinned Lottie marker over the clicked/searched location */
-      .wx-anim-pin {
-        width: 120px;
-        height: 120px;
-        pointer-events: none;
-        transform: translate(-50%, -90%); /* anchor near bottom center */
-        opacity: .9;
-      }
-      .wx-anim-pin svg { width: 100%; height: 100%; }
-
-      /* Marker popup a tad wider */
+      /* Popup a bit wider */
       .leaflet-popup-content { margin:10px 14px; }
+
+      @media (max-width:560px){
+        .card-inner{ flex-direction:row; gap:10px; }
+        .anim-wrap{ width:96px; height:96px; flex-basis:96px; }
+        #weather-card .temp{ font-size:26px; }
+      }
     </style>
   </head>
   <body>
@@ -82,14 +82,6 @@
     <div class="topbar">
       <div class="topbar-inner">
         <input id="city-search" class="search" placeholder="Search city... (press Enter to use top result)"/>
-        <div class="select-wrap">
-          <span>Animation</span>
-          <select id="anim-mode">
-            <option value="pinned" selected>Pinned to location</option>
-            <option value="fullscreen">Full map</option>
-            <option value="off">Off</option>
-          </select>
-        </div>
         <div class="select-wrap">
           <span>Card position</span>
           <select id="card-pos">
@@ -102,16 +94,20 @@
       </div>
     </div>
 
-    <!-- Fullscreen animation layer (used only in "fullscreen" mode) -->
-    <div id="weather-overlay" aria-hidden="true"></div>
-
-    <!-- Stats card -->
-    <div id="weather-stats" class="pos-tr" role="status" aria-live="polite">
-      <div class="coords">—</div>
-      <div class="row"><span class="temp">-- °C</span></div>
-      <div class="row"><b>Wind:</b> <span class="wind">-- kph</span></div>
-      <div class="row"><b>Rain:</b> <span class="rain">-- mm</span></div>
-      <div class="row"><b>Summary:</b> <span class="summary">—</span></div>
+    <!-- Stats card with animation INSIDE -->
+    <div id="weather-card" class="pos-tr" role="status" aria-live="polite">
+      <div class="card-inner">
+        <div class="metrics">
+          <div class="coords">—</div>
+          <div class="row"><span class="temp">-- °C</span></div>
+          <div class="row"><b>Wind:</b> <span class="wind">-- kph</span></div>
+          <div class="row"><b>Rain:</b> <span class="rain">-- mm</span></div>
+          <div class="row"><b>Summary:</b> <span class="summary">—</span></div>
+        </div>
+        <div class="anim-wrap">
+          <div id="weather-anim" aria-hidden="true"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Map -->
@@ -119,18 +115,16 @@
 
     <script>
       // -------------------- MAP --------------------
-      const map = L.map('map').setView([50.081, 14.42], 6); // start near Prague
+      const map = L.map('map').setView([50.081, 14.42], 6);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '&copy; OpenStreetMap'
       }).addTo(map);
       let marker;
 
       // -------------------- UI elements --------------------
-      const overlayEl = document.getElementById('weather-overlay');
-      const card      = document.getElementById('weather-stats');
-      const cardPos   = document.getElementById('card-pos');
-      const animModeSelect = document.getElementById('anim-mode');
-
+      const card           = document.getElementById('weather-card');
+      const cardPos        = document.getElementById('card-pos');
+      const $              = (sel)=>card.querySelector(sel);
       function setCardPos(cls){
         card.classList.remove('pos-tr','pos-tl','pos-br','pos-bl');
         card.classList.add(cls);
@@ -150,63 +144,20 @@
       function tempWord(t){ return t>=28?'Hot':t>=22?'Warm':t>=14?'Mild':'Cold'; }
       function windWord(w){ return w>=25?'Windy':w>=12?'Breezy':'Calm'; }
 
-      // -------------------- LOTTIE: fullscreen & pinned modes --------------------
-      let lottieInstance = null;     // fullscreen
-      let lottiePinInstance = null;  // pinned
-      let lottiePinMarker = null;    // Leaflet marker for pin
-      let lastConditionKey = 'cloudy';
-
-      async function renderAnimation(conditionKey, lat, lon) {
-        const mode = animModeSelect.value;
-
-        // Clean up both modes first
-        if (lottieInstance) { lottieInstance.destroy(); lottieInstance = null; }
-        if (lottiePinInstance) { lottiePinInstance.destroy(); lottiePinInstance = null; }
-        if (lottiePinMarker) { map.removeLayer(lottiePinMarker); lottiePinMarker = null; }
-        overlayEl.innerHTML = '';
-
-        if (mode === 'off') return;
-
-        // Load Lottie JSON
-        let data = null;
+      // -------------------- LOTTIE in the CARD --------------------
+      let lottieInstance = null;
+      async function renderCardAnimation(conditionKey){
+        const container = document.getElementById('weather-anim');
+        container.innerHTML = '';
         try {
-          const res = await fetch(`/animations/${conditionKey}.json`, { cache: 'force-cache' });
-          if (!res.ok) return;
-          data = await res.json();
-        } catch { return; }
-
-        if (mode === 'fullscreen') {
+          const res = await fetch(`/animations/${conditionKey}.json`, {cache:'force-cache'});
+          if (!res.ok) return; // animation file missing? silently ignore
+          const data = await res.json();
+          if (lottieInstance) { lottieInstance.destroy(); lottieInstance=null; }
           lottieInstance = lottie.loadAnimation({
-            container: overlayEl, renderer:'svg', loop:true, autoplay:true, animationData:data
+            container, renderer:'svg', loop:true, autoplay:true, animationData:data
           });
-          return;
-        }
-
-        // Pinned mode (default)
-        const where = (lat!=null && lon!=null) ? [lat, lon] : map.getCenter();
-        lottiePinMarker = L.marker(where, {
-          icon: L.divIcon({
-            className: '',
-            html: '<div id="wx-anim-pin" class="wx-anim-pin"></div>'
-          }),
-          interactive: false
-        }).addTo(map);
-
-        const container = document.getElementById('wx-anim-pin');
-        lottiePinInstance = lottie.loadAnimation({
-          container, renderer:'svg', loop:true, autoplay:true, animationData:data
-        });
-
-        // gentle zoom scaling
-        const base = 120; // px
-        function updatePinSize() {
-          const scale = Math.pow(1.12, map.getZoom() - 10);
-          container.style.width  = `${base * scale}px`;
-          container.style.height = `${base * scale}px`;
-        }
-        map.off('zoomend', updatePinSize);
-        map.on('zoomend', updatePinSize);
-        updatePinSize();
+        } catch {}
       }
 
       function themeCard(theme){
@@ -214,23 +165,24 @@
         card.classList.add(theme);
       }
 
-      function updateStats({ lat, lon, tempC, windKph, rainMm, summary, theme }){
+      function updateStats({ lat, lon, tempC, windKph, rainMm, summary, theme, conditionKey }){
         themeCard(theme);
         card.querySelector('.coords').textContent = `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
         card.querySelector('.temp').textContent   = `${tempC.toFixed(1)} °C`;
         card.querySelector('.wind').textContent   = `${windKph.toFixed(1)} kph`;
         card.querySelector('.rain').textContent   = `${(rainMm||0).toFixed(1)} mm`;
         card.querySelector('.summary').textContent= summary;
+        renderCardAnimation(conditionKey);
       }
 
-      // -------------------- BACKEND by city (your API) --------------------
+      // -------------------- BACKEND call (your API) --------------------
       async function getWeatherByCity(city){
         const r = await fetch(`/weather-summary?city=${encodeURIComponent(city)}`);
         if (!r.ok) throw new Error('API error');
-        return r.json(); // may include {city, lat, lon, temp_c, wind_kph, precip_mm, weather_code, summary}
+        return r.json(); // {city,temp_c,wind_kph,summary, lat?, lon?}
       }
 
-      // -------------------- Open-Meteo precise by coords --------------------
+      // -------------------- Open-Meteo (precise for coordinates) ------
       async function getWeatherByLatLon(lat, lon){
         const url = new URL('https://api.open-meteo.com/v1/forecast');
         url.search = new URLSearchParams({
@@ -241,25 +193,21 @@
         if (!r.ok) throw new Error('Upstream error');
         const j = await r.json();
         const cur = j.current || {};
-        const temp = Number(cur.temperature_2m ?? 0);
-        const wind = Number(cur.wind_speed_10m ?? 0);
-        const rain = Number(cur.precipitation ?? 0);
-        const thunder = [95,96,99].includes(cur.weather_code);
         return {
-          temp_c: temp,
-          wind_kph: wind,  // open-meteo current wind is already in km/h for most models
-          rain_mm: rain,
-          thunder,
-          summary: `${tempWord(temp)} + ${windWord(wind)}`
+          temp_c: cur.temperature_2m ?? NaN,
+          wind_kph: (cur.wind_speed_10m ?? 0),        // already in km/h
+          rain_mm: cur.precipitation ?? 0,
+          thunder: [95,96,99].includes(cur.weather_code),
+          summary: `${tempWord(cur.temperature_2m ?? 0)} + ${windWord((cur.wind_speed_10m ?? 0))}`
         };
       }
 
-      // -------------------- Glue: show on map + UI --------------------
+      // -------------------- Glue: show on map + card --------------------
+      let lastConditionKey = 'cloudy';
       function showWeatherUI({ lat, lon, temp_c, wind_kph, rain_mm=0, thunder=false, summary }){
         const { key, theme } = pickCondition({ tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, thunder });
         lastConditionKey = key;
-        renderAnimation(key, lat, lon);
-        updateStats({ lat, lon, tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, summary, theme });
+        updateStats({ lat, lon, tempC: temp_c, windKph: wind_kph, rainMm: rain_mm, summary, theme, conditionKey:key });
 
         if (marker) marker.remove();
         marker = L.marker([lat,lon]).addTo(map);
@@ -271,13 +219,7 @@
         ).openPopup();
       }
 
-      // React when user switches animation mode
-      animModeSelect.addEventListener('change', () => {
-        const center = marker ? marker.getLatLng() : map.getCenter();
-        renderAnimation(lastConditionKey, center.lat, center.lng);
-      });
-
-      // Map click = precise, realtime
+      // Map click = precise data
       map.on('click', async (e)=>{
         const { lat, lng } = e.latlng;
         try {
@@ -288,27 +230,23 @@
         }
       });
 
-      // Search (Enter) = use backend by city, center via Nominatim
+      // Search (Enter) = use your backend by city name
       document.getElementById('city-search').addEventListener('keydown', async (e)=>{
         if (e.key !== 'Enter') return;
         const q = e.target.value.trim(); if (!q) return;
 
+        // Geocode top result (for centering) with Nominatim
         try {
-          // Geocode first (for map center & pin position)
           const gres = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
           const [g] = await gres.json();
           let lat = 50.0, lon = 14.4;
           if (g) { lat = +g.lat; lon = +g.lon; map.setView([lat,lon], 11); }
 
-          // Then fetch your summarized weather
           const data = await getWeatherByCity(q);
           const summary = data.summary ?? `${tempWord(data.temp_c)} + ${windWord(data.wind_kph)}`;
-
-          // Prefer backend lat/lon if provided; else use geocode
-          const outLat = (typeof data.lat === 'number') ? data.lat : lat;
-          const outLon = (typeof data.lon === 'number') ? data.lon : lon;
-
-          showWeatherUI({ lat: outLat, lon: outLon, temp_c: data.temp_c, wind_kph: data.wind_kph, summary });
+          const latOut = (typeof data.lat === 'number') ? data.lat : lat;
+          const lonOut = (typeof data.lon === 'number') ? data.lon : lon;
+          showWeatherUI({ lat: latOut, lon: lonOut, temp_c: data.temp_c, wind_kph: data.wind_kph, summary });
         } catch (err) {
           console.error(err);
         }
