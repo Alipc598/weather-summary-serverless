@@ -1,4 +1,6 @@
-﻿# Weather Summary API (Vercel)
+﻿**Production:** https://weather-summary-serverless-6cht63ar1-alipc598s-projects.vercel.app
+
+# Weather Summary API (Vercel)
 
 `GET /weather-summary?city=Prague` → `{ city, temp_c, wind_kph, summary }`
 
@@ -20,3 +22,5 @@ On push to `main`: lint → test → deploy (requires repo secret: VERCEL_TOKEN)
 - Open-Meteo geocoding + forecast, metric units.
 - Handles both `current` and legacy `current_weather`.
 - 60s in-memory cache per city.
+
+
