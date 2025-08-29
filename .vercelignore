@@ -1,0 +1,6 @@
+﻿.github/
+tests/
+scripts/
+.eslintrc.json
+.gitignore
+README.md

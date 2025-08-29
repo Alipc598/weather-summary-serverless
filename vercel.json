@@ -1,0 +1,12 @@
+﻿{
+  "version": 2,
+  "functions": {
+    "api/weather-summary.js": {
+      "runtime": "nodejs20.x",
+      "memory": 128
+    }
+  },
+  "routes": [
+    { "src": "/weather-summary", "dest": "/api/weather-summary.js" }
+  ]
+}
