@@ -23,5 +23,9 @@
                         },
     "jest":  {
                  "testEnvironment":  "node"
-             }
+             },
+    "private":  true,
+    "engines":  {
+                    "node":  "\u003e=20"
+                }
 }
