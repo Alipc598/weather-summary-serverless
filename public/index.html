@@ -241,8 +241,95 @@
         }, ()=>{});
       }
     </script>
-  </body>
+  <script>
+/* --- Weather card: lock to bottom-left, disable dragging --- */
+(function () {
+  function lockCardBottomLeft() {
+    const card = document.getElementById('weather-stats');
+    if (!card) return;
+
+    // Force bottom-left placement and remove any drag transforms
+    card.style.top = "";
+    card.style.right = "";
+    card.style.left = "12px";
+    card.style.bottom = "12px";
+    card.style.transform = "";
+    card.style.cursor = "default";
+    card.classList.remove("pos-tr","pos-tl","pos-br");
+    card.classList.add("pos-bl");
+
+    // Best-effort: cancel any handlers a previous patch may have attached
+    card.onmousedown = null;
+    document.onmousemove = null;
+    document.onmouseup = null;
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", lockCardBottomLeft);
+  } else {
+    lockCardBottomLeft();
+  }
+
+  // Also keep it there on resize (no snapping logic; it just remains locked)
+  window.addEventListener("resize", lockCardBottomLeft);
+})();
+
+/* --- Stricter condition mapping so rain/thunder shows reliably --- */
+// Override the condition picker to use both precipitation and WMO weather_code.
+(function () {
+  const RAIN = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82]);
+  const SNOW = new Set([71,73,75,77,85,86]);
+  const THUNDER = new Set([95,96,99]);
+
+  function tempWord(t){ return t>=28?'Hot':t>=22?'Warm':t>=14?'Mild':t>=5?'Cool':'Cold'; }
+  function windWord(w){ return w>=25?'Windy':w>=12?'Breezy':'Calm'; }
+
+  // Replace global pickCondition (last definition wins)
+  window.pickCondition = function pickCondition({ tempC, windKph, rainMm=0, thunder=false, code=0 }) {
+    if (THUNDER.has(code) || thunder) return { key:'thunder', theme:'card--storm' };
+    if ((rainMm ?? 0) > 0.01 || RAIN.has(code)) return { key:'rain', theme:'card--rain' };
+    if (SNOW.has(code)) return { key:'snow', theme:'card--snow' };
+    if (tempC >= 25 && (rainMm ?? 0) <= 0.01) return { key:'sunny', theme:'card--sunny' };
+    return { key:'cloudy', theme:'card--cloudy' };
+  };
+
+  // Replace getWeatherByLatLon to carry weather_code into UI + compute a clearer summary
+  window.getWeatherByLatLon = async function getWeatherByLatLon(lat, lon){
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.search = new URLSearchParams({
+      latitude: lat, longitude: lon,
+      current: 'temperature_2m,wind_speed_10m,precipitation,weather_code'
+    }).toString();
+
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Upstream error');
+    const j = await r.json();
+    const cur = j.current || {};
+
+    const temp = Number(cur.temperature_2m ?? NaN);
+    const wind = Number(cur.wind_speed_10m ?? 0);
+    const rain = Number(cur.precipitation ?? 0);
+    const code = Number(cur.weather_code ?? 0);
+
+    const parts = [tempWord(temp)];
+    if ([95,96,99].includes(code)) parts.push('Thunder');
+    else if (rain > 0.01 || [51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) parts.push('Rain');
+    parts.push(windWord(wind));
+
+    return {
+      temp_c: temp,
+      wind_kph: wind,        // Open-Meteo current wind is already in km/h
+      rain_mm: rain,
+      weather_code: code,
+      thunder: [95,96,99].includes(code),
+      summary: parts.join(' + ')
+    };
+  };
+})();
+</script>
+</body>
 </html>
+
 
 
 
